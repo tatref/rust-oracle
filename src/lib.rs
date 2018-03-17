@@ -303,6 +303,7 @@ pub use connection::StartupMode;
 pub use error::DbError;
 pub use error::Error;
 pub use error::ParseOracleTypeError;
+pub use row::FetchMode;
 pub use row::ResultSet;
 pub use row::Row;
 pub use row::RowValue;

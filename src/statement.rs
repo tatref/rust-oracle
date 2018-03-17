@@ -3,7 +3,7 @@
 // URL: https://github.com/kubo/rust-oracle
 //
 //-----------------------------------------------------------------------------
-// Copyright (c) 2017-2018 Kubo Takehiro <kubo@jiubao.org>. All rights reserved.
+// Copyright (c) 2017-2019 Kubo Takehiro <kubo@jiubao.org>. All rights reserved.
 // This program is free software: you can modify it and/or redistribute it
 // under the terms of:
 //
@@ -25,6 +25,7 @@ use binding::*;
 
 use Connection;
 use Error;
+use FetchMode;
 use FromSql;
 use OracleType;
 use Result;
@@ -170,6 +171,7 @@ pub struct Statement<'conn> {
     shared_buffer_row_index: Rc<RefCell<u32>>,
     statement_type: StatementType,
     is_returning: bool,
+    pub(crate) scrollable: bool,
     bind_count: usize,
     bind_names: Vec<String>,
     bind_values: Vec<SqlValue>,
@@ -247,6 +249,7 @@ impl<'conn> Statement<'conn> {
             shared_buffer_row_index: Rc::new(RefCell::new(0)),
             statement_type: StatementType::from_enum(info.statementType),
             is_returning: info.isReturning != 0,
+            scrollable: scrollable != 0,
             bind_count: bind_count,
             bind_names: bind_names,
             bind_values: bind_values,
@@ -716,6 +719,19 @@ impl<'conn> Statement<'conn> {
         } else {
             Some(Err(::error::error_from_context(self.conn.ctxt)))
         }
+    }
+
+    pub(crate) fn scroll(&self, mode: FetchMode) -> Result<()> {
+        let (mode, offset) = match mode {
+            FetchMode::Next => (DPI_MODE_FETCH_NEXT, 0),
+            FetchMode::Prior => (DPI_MODE_FETCH_RELATIVE, -1),
+            FetchMode::First => (DPI_MODE_FETCH_FIRST, 0),
+            FetchMode::Last => (DPI_MODE_FETCH_LAST, 0),
+            FetchMode::Absolute(offset) => (DPI_MODE_FETCH_ABSOLUTE, offset),
+            FetchMode::Relative(offset) => (DPI_MODE_FETCH_RELATIVE, offset),
+        };
+        chkerr!(self.conn.ctxt, dpiStmt_scroll(self.handle, mode as dpiFetchMode, offset, 0));
+        Ok(())
     }
 
     /// Returns the number of rows fetched when the SQL statement is a query.

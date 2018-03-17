@@ -24,6 +24,7 @@ use binding::*;
 use ColumnIndex;
 use ColumnInfo;
 use Connection;
+use Error;
 use FromSql;
 use Result;
 use SqlValue;
@@ -40,6 +41,17 @@ impl Drop for RowSharedData {
             unsafe { dpiConn_release(self.conn_handle) };
         }
     }
+}
+
+/// Fetch mode
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FetchMode {
+    Next,
+    Prior,
+    First,
+    Last,
+    Absolute(i32),
+    Relative(i32),
 }
 
 /// Row in a result set of a select statement
@@ -150,10 +162,10 @@ where
     }
 
     fn stmt(&self) -> &Statement {
-        if self.stmt.is_some() {
-            self.stmt.as_ref().unwrap()
-        } else if self.stmt_boxed.is_some() {
-            self.stmt_boxed.as_ref().unwrap().as_ref()
+        if let Some(ref stmt) = self.stmt {
+            stmt
+        } else if let Some(ref stmt_boxed) = self.stmt_boxed {
+            stmt_boxed.as_ref()
         } else {
             panic!("Both stmt and stmt_boxed are none!");
         }
@@ -161,6 +173,21 @@ where
 
     pub fn column_info(&self) -> &[ColumnInfo] {
         &self.stmt().column_info
+    }
+
+    pub fn fetch(&mut self, mode: FetchMode) -> Result<T> {
+        if self.stmt().scrollable {
+            self.stmt().scroll(mode)?;
+        } else {
+            if mode != FetchMode::Next {
+                return Err(Error::InvalidOperation(format!("Could not use FetchMode::{:?} for non-scrollable cursor", mode)));
+            }
+        }
+        self.next().unwrap_or(Err(Error::NoDataFound))
+    }
+
+    pub fn row_count(&self) -> Result<u64> {
+        self.stmt().row_count()
     }
 }
 
