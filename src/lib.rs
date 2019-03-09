@@ -3,7 +3,7 @@
 // URL: https://github.com/kubo/rust-oracle
 //
 //-----------------------------------------------------------------------------
-// Copyright (c) 2017-2018 Kubo Takehiro <kubo@jiubao.org>. All rights reserved.
+// Copyright (c) 2017-2019 Kubo Takehiro <kubo@jiubao.org>. All rights reserved.
 // This program is free software: you can modify it and/or redistribute it
 // under the terms of:
 //
@@ -271,12 +271,15 @@ Rust-oracle and ODPI-C bundled in rust-oracle are under the terms of:
 [territory]: http://www.oracle.com/technetwork/database/database-technologies/globalization/nls-lang-099431.html#_Toc110410560
 */
 
+#[macro_use]
+extern crate bitflags;
 #[cfg(feature = "chrono")]
 extern crate chrono;
 #[macro_use]
 extern crate lazy_static;
 extern crate try_from;
 
+use std::borrow::Cow;
 use std::os::raw::c_char;
 use std::ptr;
 use std::result;
@@ -293,6 +296,7 @@ mod connection;
 mod row;
 mod sql_value;
 mod statement;
+pub mod subscr;
 mod types;
 mod util;
 
@@ -658,6 +662,15 @@ fn to_rust_str(ptr: *const c_char, len: u32) -> String {
     } else {
         let s = unsafe { slice::from_raw_parts(ptr as *mut u8, len as usize) };
         String::from_utf8_lossy(s).into_owned()
+    }
+}
+
+fn to_cow_str<'a>(ptr: *const c_char, len: u32) -> Cow<'a, str> {
+    if ptr.is_null() {
+        Cow::Borrowed("")
+    } else {
+        let s = unsafe { slice::from_raw_parts(ptr as *mut u8, len as usize) };
+        String::from_utf8_lossy(s)
     }
 }
 
